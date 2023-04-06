@@ -22,7 +22,7 @@ namespace Kinemation.FPSFramework.Editor.Core
         private CoreAnimComponent owner;
         // Inspector of the currently selected anim layer
         private UnityEditor.Editor layerEditor;
-        
+
         private void OnEnable()
         {
             owner = (CoreAnimComponent) target;
@@ -46,9 +46,18 @@ namespace Kinemation.FPSFramework.Editor.Core
         private void DrawHeader(Rect rect)
         {
             GUI.Label(rect, "Layers");
+            
+            if (Event.current.type == EventType.MouseDown && Event.current.button == 1 && rect.Contains(Event.current.mousePosition))
+            {
+                GenericMenu menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Copy layers"), false, CopyList);
+                menu.AddItem(new GUIContent("Paste layers"), false, PasteList);
+                menu.ShowAsContext();
+                Event.current.Use();
+            }
         }
 
-        // Draws an element of the reordererable list
+        // Draws an element of the re-order-able list
         private void DrawElement(Rect rect, int index, bool isActive, bool isFocused)
         {
             var element = layersReorderable.serializedProperty.GetArrayElementAtIndex(index);
@@ -56,6 +65,16 @@ namespace Kinemation.FPSFramework.Editor.Core
             Type type = element.objectReferenceValue.GetType();
             rect.y += 2;
             GUI.Label(new Rect(rect.x, rect.y, 200, EditorGUIUtility.singleLineHeight), type.Name);
+            
+            if (index == selectedLayer && Event.current.type == EventType.MouseUp && Event.current.button == 1 
+                && rect.Contains(Event.current.mousePosition))
+            {
+                var menu = new GenericMenu();
+                menu.AddItem(new GUIContent("Copy"), false, CopyLayerValues);
+                menu.AddItem(new GUIContent("Paste"), false, PasteLayerValues);
+                menu.ShowAsContext();
+                Event.current.Use();
+            }
         }
         
         // Called when layer is selected
@@ -97,7 +116,6 @@ namespace Kinemation.FPSFramework.Editor.Core
         
         private void OnMenuOptionSelected(object userData, string[] options, int selected)
         {
-            // This method is called when a menu option is selected
             //Debug.Log("Selected menu option: " + options[selected]);
 
             var selectedType = layerTypes[selected];
@@ -243,6 +261,75 @@ namespace Kinemation.FPSFramework.Editor.Core
             GUILayout.EndHorizontal();
         }
 
+        private void PasteLayerValues()
+        {
+            // Check if buffer is valid
+            string serializedData = EditorGUIUtility.systemCopyBuffer;
+            if (string.IsNullOrEmpty(serializedData))
+            {
+                return;
+            }
+
+            var selectedItem = owner.GetLayer(selectedLayer);
+            EditorJsonUtility.FromJsonOverwrite(serializedData, selectedItem);
+        }
+
+        private void CopyLayerValues()
+        {
+            EditorGUIUtility.systemCopyBuffer = EditorJsonUtility.ToJson(owner.GetLayer(selectedLayer));
+        }
+
+        private void CopyList()
+        {
+            string jsonString = "";
+            for (int i = 0; i < layersReorderable.count; i++)
+            {
+                var layerToEncode = owner.GetLayer(i);
+                // Serialize each layer component
+                jsonString += layerToEncode.GetType().AssemblyQualifiedName + 
+                              "$" + EditorJsonUtility.ToJson(layerToEncode) + "\n";
+            }
+
+            jsonString = string.IsNullOrEmpty(jsonString) ? jsonString : jsonString.Remove(jsonString.Length - 1);
+            EditorGUIUtility.systemCopyBuffer = jsonString;
+        }
+
+        private void PasteList()
+        {
+            string serializedLayers = EditorGUIUtility.systemCopyBuffer;
+            if (string.IsNullOrEmpty(serializedLayers))
+            {
+                return;
+            }
+            
+            // Clear all the attached anim layers
+            int count = layersReorderable.count;
+            for (int i = 0; i < count; i++)
+            {
+                owner.RemoveLayer(0);
+            }
+            
+            string[] jsonList = serializedLayers.Split("\n");
+            foreach (string json in jsonList)
+            {
+                string[] typeAndData = json.Split("$");
+                Type layerType = Type.GetType(typeAndData[0]);
+
+                if (layerType == null)
+                {
+                    Debug.Log("Invalid layer type: " + typeAndData[0]);
+                    continue;
+                }
+                
+                var layer = owner.transform.gameObject.AddComponent(layerType);
+
+                EditorJsonUtility.FromJsonOverwrite(typeAndData[1], layer);
+                
+                layer.hideFlags = HideFlags.HideInInspector;
+                owner.AddLayer((AnimLayer) layer);
+            }
+        }
+
         public override void OnInspectorGUI()
         {
             DrawDefaultInspector();
@@ -254,7 +341,6 @@ namespace Kinemation.FPSFramework.Editor.Core
             RenderAnimButtons();
 
             serializedObject.ApplyModifiedProperties();
-
         }
     }
 }

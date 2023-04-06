@@ -2,9 +2,10 @@
 
 using System;
 using System.Collections.Generic;
-using Kinemation.FPSFramework.Runtime.Layers;
-using Unity.Netcode;
 using UnityEngine;
+using Quaternion = UnityEngine.Quaternion;
+using Vector2 = UnityEngine.Vector2;
+using Vector3 = UnityEngine.Vector3;
 
 namespace Kinemation.FPSFramework.Runtime.Core
 {
@@ -33,21 +34,21 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
             float curveTime = GetMaxTime(x);
             maxTime = curveTime > maxTime ? curveTime : maxTime;
-
+        
             curveTime = GetMaxTime(y);
             maxTime = curveTime > maxTime ? curveTime : maxTime;
-
+        
             curveTime = GetMaxTime(z);
             maxTime = curveTime > maxTime ? curveTime : maxTime;
 
             return maxTime;
         }
-
+        
         public static float GetMaxTime(AnimationCurve curve)
         {
             return curve[curve.length - 1].time;
         }
-
+        
         public Vector3 Evaluate(float time)
         {
             return new Vector3(x.Evaluate(time), y.Evaluate(time), z.Evaluate(time));
@@ -109,7 +110,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             velocity = 0f;
             maxValue = 0f;
         }
-
+        
         public SpringData(float stiffness, float damping, float speed)
         {
             this.stiffness = stiffness;
@@ -138,7 +139,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public VectorSpringData loc;
         public VectorSpringData rot;
     }
-
+    
     [Serializable]
     public struct FreeAimData
     {
@@ -153,40 +154,139 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public Vector3 maxMoveLocSway;
         public Vector3 maxMoveRotSway;
     }
-
+    
+    [Serializable]
+    public struct GunBlockData
+    {
+        public float weaponLength;
+        public float startOffset;
+        public float threshold;
+        public LocRot restPose;
+    }
+    
     // Defines weapon-related properties, updated when weapon is equipped/unequipped
     [Serializable]
     public struct WeaponAnimData
     {
         [Header("LeftHandIK")]
         public Transform leftHandTarget;
-
+        
         [Header("AdsLayer")]
         public GunAimData gunAimData;
         public Vector3 handsOffset;
-        [Header("SwayLayerLayer")]
+        [Header("SwayLayer")]
         public LocRotSpringData springData;
         public FreeAimData freeAimData;
         public MoveSwayData moveSwayData;
+        [Header("WeaponCollision")] 
+        public GunBlockData blockData;
     }
 
     // Defines player input data consumed by Anim Layers
-    public struct CharAnimData : INetworkSerializable
+    public struct CharAnimData
     {
         // Input
         public Vector2 deltaAimInput;
+        public Vector2 totalAimInput;
         public Vector2 moveInput;
         public int leanDirection;
-
+        
         public LocRot recoilAnim;
 
-        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        public void AddAimInput(Vector2 aimInput)
         {
-            serializer.SerializeValue(ref deltaAimInput);
-            serializer.SerializeValue(ref moveInput);
-            serializer.SerializeValue(ref leanDirection);
-            serializer.SerializeValue(ref recoilAnim.position);
-            serializer.SerializeValue(ref recoilAnim.rotation);
+            deltaAimInput = aimInput;
+            totalAimInput += deltaAimInput;
+            totalAimInput.x = Mathf.Clamp(totalAimInput.x, -90f, 90f);
+            totalAimInput.y = Mathf.Clamp(totalAimInput.y, -90f, 90f);
+        }
+    }
+
+    // Procedural animation
+    [Serializable]
+    public struct DynamicMotion
+    {
+        // Curve-based animation
+        public VectorCurve rot;
+        public VectorCurve loc;
+        
+        // How fast to blend to another motion
+        [SerializeField] private float blendSpeed;
+        [SerializeField] private float playRate;
+        
+        private float playBack;
+        private float blendAlpha;
+        
+        public LocRot outMotion;
+        // Used to blend to the currentMotion
+        private LocRot cachedMotion;
+        private float motionLength;
+
+        public void Reset()
+        {
+            outMotion = cachedMotion = new LocRot(Vector3.zero, Quaternion.identity);
+        }
+
+        public void Play(ref DynamicMotion previousMotion)
+        {
+            cachedMotion = previousMotion.outMotion;
+            playRate = Mathf.Approximately(playRate, 0f) ? 1f : playRate;
+            motionLength = Mathf.Max(loc.GetLastTime(), rot.GetLastTime());
+            playBack = 0f;
+            blendAlpha = 0f;
+        }
+
+        private LocRot Evaluate()
+        {
+            return new LocRot(loc.Evaluate(playBack), Quaternion.Euler(rot.Evaluate(playBack)));
+        }
+
+        // Return currently playing motion
+        public void UpdateMotion()
+        {
+            if (Mathf.Approximately(playBack, motionLength))
+            {
+                outMotion = new LocRot(Vector3.zero, Quaternion.identity);
+                return;
+            }
+            
+            playBack += Time.deltaTime * playRate;
+            playBack = Mathf.Clamp(playBack, 0f, motionLength);
+            var currentMotion = Evaluate();
+
+            blendAlpha += Time.deltaTime * blendSpeed;
+            blendAlpha = Mathf.Min(1f, blendAlpha);
+
+            var result = CoreToolkitLib.Lerp(cachedMotion, currentMotion, blendAlpha);
+            outMotion = result;
+        }
+    }
+
+    public struct MotionPlayer
+    {
+        private DynamicMotion motion;
+
+        public void Reset()
+        {
+            motion.Reset();
+        }
+        
+        public void Play(DynamicMotion motionToPlay)
+        {
+            var cache = motion;
+            motion = motionToPlay;
+            motion.Reset();
+            motion.Play(ref cache);
+        }
+
+        public void UpdateMotion()
+        {
+            motion.UpdateMotion();
+        }
+
+        public LocRot Get()
+        {
+            return motion.outMotion;
         }
     }
 
@@ -194,12 +294,12 @@ namespace Kinemation.FPSFramework.Runtime.Core
     {
         private const float FloatMin = 1e-10f;
         private const float SqrEpsilon = 1e-8f;
-
+        
         public static float SpringInterp(float current, float target, ref SpringData springData)
         {
             float interpSpeed = Mathf.Min(Time.deltaTime * springData.speed, 1f);
             target = Mathf.Clamp(target, -springData.maxValue, springData.maxValue);
-
+            
             if (!Mathf.Approximately(interpSpeed, 0f))
             {
                 if (!Mathf.Approximately(springData.mass, 0f))
@@ -215,7 +315,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                     float value = current + springData.velocity * interpSpeed;
                     return value;
                 }
-
+            
                 return target;
             }
 
@@ -241,7 +341,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             final.position = SpringInterp(current.position, target.position, ref springData.loc);
             final.rotation = Quaternion.Euler(SpringInterp(current.rotation.eulerAngles, target.rotation.eulerAngles,
                 ref springData.rot));
-
+            
             return final;
         }
 
@@ -250,7 +350,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             return Mathf.Lerp(a, b, 1 - Mathf.Exp(-speed * Time.deltaTime));
         }
-
+        
         public static float GlerpLayer(float a, float b, float speed)
         {
             return Mathf.Approximately(speed, 0f)
@@ -268,6 +368,20 @@ namespace Kinemation.FPSFramework.Runtime.Core
             return Quaternion.Slerp(a, b, 1 - Mathf.Exp(-speed * Time.deltaTime));
         }
 
+        public static LocRot Glerp(LocRot a, LocRot b, float speed)
+        {
+            var Rot = Quaternion.Slerp(a.rotation, b.rotation, 1 - Mathf.Exp(-speed * Time.deltaTime));
+            var Loc = Vector3.Lerp(a.position, b.position, 1 - Mathf.Exp(-speed * Time.deltaTime));
+            return new LocRot(Loc, Rot);
+        }
+
+        public static LocRot Lerp(LocRot a, LocRot b, float alpha)
+        {
+            var loc = Vector3.Lerp(a.position, b.position, alpha);
+            var rot = Quaternion.Slerp(a.rotation, b.rotation, alpha);
+            return new LocRot(loc, rot);
+        }
+        
         public static void RotateInBoneSpace(Quaternion target, Transform boneToRotate, Vector3 rotationAmount)
         {
             var headRot = boneToRotate.rotation;
@@ -277,6 +391,17 @@ namespace Kinemation.FPSFramework.Runtime.Core
             var finalRot = headOffsetRot * headToMesh;
 
             boneToRotate.rotation = finalRot;
+        }
+        
+        public static void RotateInBoneSpace(Quaternion target, Transform boneToRotate, Vector3 rotationAmount, float alpha)
+        {
+            var headRot = boneToRotate.rotation;
+            var headToMesh = Quaternion.Inverse(target) * headRot;
+            var headOffsetRot = target * Quaternion.Euler(rotationAmount);
+
+            var finalRot = headOffsetRot * headToMesh;
+
+            boneToRotate.rotation = Quaternion.Slerp(boneToRotate.rotation, finalRot, alpha);
         }
 
         public static void RotateInBoneSpace(Quaternion target, Transform boneToRotate, Quaternion rotationAmount)
@@ -289,6 +414,18 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
             boneToRotate.rotation = finalRot;
         }
+        
+        public static void RotateInBoneSpace(Quaternion target, Transform boneToRotate, Quaternion rotationAmount, 
+            float alpha)
+        {
+            var headRot = boneToRotate.rotation;
+            var headToMesh = Quaternion.Inverse(target) * headRot;
+            var headOffsetRot = target * rotationAmount;
+
+            var finalRot = headOffsetRot * headToMesh;
+
+            boneToRotate.rotation = Quaternion.Slerp(boneToRotate.rotation, finalRot, alpha);
+        }
 
         public static void MoveInBoneSpace(Transform target, Transform boneToMove, Vector3 offsetMeshSpace)
         {
@@ -297,6 +434,15 @@ namespace Kinemation.FPSFramework.Runtime.Core
             offset -= root.position;
 
             boneToMove.position += offset;
+        }
+        
+        public static void MoveInBoneSpace(Transform target, Transform boneToMove, Vector3 offsetMeshSpace, float alpha)
+        {
+            var root = target.transform;
+            Vector3 offset = root.TransformPoint(offsetMeshSpace);
+            offset -= root.position;
+
+            boneToMove.position += offset * alpha;
         }
 
         // Adapted from Two Bone IK constraint, Unity Animation Rigging package
@@ -354,7 +500,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             float cos = Mathf.Cos(a);
             Quaternion deltaR = new Quaternion(axis.x * sin, axis.y * sin, axis.z * sin, cos);
             mid.rotation = deltaR * mid.rotation;
-
+            
             cPosition = tip.position;
             ac = cPosition - aPosition;
             root.rotation = FromToRotation(ac, at) * root.rotation;
@@ -389,7 +535,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
             tip.rotation = tRotation;
         }
-
+        
         private static float TriangleAngle(float aLen, float aLen1, float aLen2)
         {
             float c = Mathf.Clamp((aLen1 * aLen1 + aLen2 * aLen2 - aLen * aLen) / (aLen1 * aLen2) / 2.0f, -1.0f, 1.0f);

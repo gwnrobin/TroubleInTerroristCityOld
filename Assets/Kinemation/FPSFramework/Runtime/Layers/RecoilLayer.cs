@@ -8,12 +8,12 @@ namespace Kinemation.FPSFramework.Runtime.Layers
     public class RecoilLayer : AnimLayer
     {
         [SerializeField] private bool useMeshSpace;
-
+        
         public override void OnAnimUpdate()
         {
             var masterDynamic = GetMasterIK();
             var recoilAnim = GetCharData().recoilAnim;
-
+            
             LocRot baseT = new LocRot(masterDynamic.position, masterDynamic.rotation);
 
             if (useMeshSpace)
@@ -32,7 +32,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
                 CoreToolkitLib.RotateInBoneSpace(masterDynamic.rotation, masterDynamic,
                     recoilAnim.rotation);
             }
-
+            
             LocRot newT = new LocRot(masterDynamic.position, masterDynamic.rotation);
 
             masterDynamic.position = Vector3.Lerp(baseT.position, newT.position, smoothLayerAlpha);

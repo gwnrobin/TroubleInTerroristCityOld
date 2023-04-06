@@ -12,13 +12,13 @@ namespace Kinemation.FPSFramework.Runtime.Layers
         [SerializeField] protected FreeAimData freeAimData;
         [SerializeField] protected bool bFreeAim;
         [SerializeField] protected bool useCircleMethod;
-
+        
         protected Vector3 smoothMoveSwayRot;
         protected Vector3 smoothMoveSwayLoc;
 
         protected Quaternion deadZoneRot;
         protected Vector2 deadZoneRotTarget;
-
+        
         protected float smoothFreeAimAlpha;
 
         protected Vector2 swayTarget;
@@ -32,6 +32,11 @@ namespace Kinemation.FPSFramework.Runtime.Layers
 
         public override void OnAnimUpdate()
         {
+            if (Mathf.Approximately(Time.deltaTime, 0f))
+            {
+                return;
+            }
+            
             var master = GetMasterIK();
             LocRot baseT = new LocRot(master.position, master.rotation);
 
@@ -42,7 +47,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
             ApplyMoveSway();
 
             LocRot newT = new LocRot(GetMasterIK().position, GetMasterIK().rotation);
-
+        
             GetMasterIK().position = Vector3.Lerp(baseT.position, newT.position, smoothLayerAlpha);
             GetMasterIK().rotation = Quaternion.Slerp(baseT.rotation, newT.rotation, smoothLayerAlpha);
         }
@@ -51,7 +56,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
         {
             float deltaRight = GetCharData().deltaAimInput.x;
             float deltaUp = GetCharData().deltaAimInput.y;
-
+            
             if (bFreeAim)
             {
                 deadZoneRotTarget.x += deltaUp * freeAimData.scalar;
@@ -61,9 +66,9 @@ namespace Kinemation.FPSFramework.Runtime.Layers
             {
                 deadZoneRotTarget = Vector2.zero;
             }
-
+            
             deadZoneRotTarget.x = Mathf.Clamp(deadZoneRotTarget.x, -freeAimData.maxValue, freeAimData.maxValue);
-
+            
             if (useCircleMethod)
             {
                 var maxY = Mathf.Sqrt(Mathf.Pow(freeAimData.maxValue, 2f) - Mathf.Pow(deadZoneRotTarget.x, 2f));
@@ -73,7 +78,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
             {
                 deadZoneRotTarget.y = Mathf.Clamp(deadZoneRotTarget.y, -freeAimData.maxValue, freeAimData.maxValue);
             }
-
+            
             deadZoneRot.x = CoreToolkitLib.Glerp(deadZoneRot.x, deadZoneRotTarget.x, freeAimData.speed);
             deadZoneRot.y = CoreToolkitLib.Glerp(deadZoneRot.y, deadZoneRotTarget.y, freeAimData.speed);
 
@@ -82,22 +87,22 @@ namespace Kinemation.FPSFramework.Runtime.Layers
 
             smoothFreeAimAlpha = CoreToolkitLib.Glerp(smoothFreeAimAlpha, bFreeAim ? 1f : 0f, 10f);
             q = Quaternion.Slerp(Quaternion.identity, q, smoothFreeAimAlpha);
-
-            CoreToolkitLib.RotateInBoneSpace(GetRootBone().rotation, headBone, q);
+            
+            CoreToolkitLib.RotateInBoneSpace(GetRootBone().rotation, headBone,q);
         }
 
         protected virtual void ApplySway()
         {
             var masterDynamic = GetMasterIK();
-
+            
             float deltaRight = core.rigData.characterData.deltaAimInput.x / Time.deltaTime;
-            float deltaUp = core.rigData.characterData.deltaAimInput.y / Time.deltaTime;
+            float deltaUp = core.rigData.characterData.deltaAimInput.y / Time.deltaTime; 
 
             swayTarget += new Vector2(deltaRight, deltaUp) * 0.01f;
             swayTarget.x = CoreToolkitLib.GlerpLayer(swayTarget.x * 0.01f, 0f, 5f);
             swayTarget.y = CoreToolkitLib.GlerpLayer(swayTarget.y * 0.01f, 0f, 5f);
 
-            Vector3 targetLoc = new Vector3(swayTarget.x, swayTarget.y, 0f);
+            Vector3 targetLoc = new Vector3(swayTarget.x, swayTarget.y,0f);
             Vector3 targetRot = new Vector3(swayTarget.y, swayTarget.x, swayTarget.x);
 
             swayLoc = CoreToolkitLib.SpringInterp(swayLoc, targetLoc, ref core.rigData.gunData.springData.loc);
@@ -121,7 +126,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
             moveRotTarget.x = moveInput.y * moveSwayData.maxMoveRotSway.x;
             moveRotTarget.y = moveInput.x * moveSwayData.maxMoveRotSway.y;
             moveRotTarget.z = moveInput.x * moveSwayData.maxMoveRotSway.z;
-
+            
             moveLocTarget.x = moveInput.x * moveSwayData.maxMoveLocSway.x;
             moveLocTarget.y = moveInput.y * moveSwayData.maxMoveLocSway.y;
             moveLocTarget.z = moveInput.y * moveSwayData.maxMoveLocSway.z;
@@ -129,15 +134,15 @@ namespace Kinemation.FPSFramework.Runtime.Layers
             smoothMoveSwayRot.x = CoreToolkitLib.Glerp(smoothMoveSwayRot.x, moveRotTarget.x, 3.8f);
             smoothMoveSwayRot.y = CoreToolkitLib.Glerp(smoothMoveSwayRot.y, moveRotTarget.y, 3f);
             smoothMoveSwayRot.z = CoreToolkitLib.Glerp(smoothMoveSwayRot.z, moveRotTarget.z, 5f);
-
+            
             smoothMoveSwayLoc.x = CoreToolkitLib.Glerp(smoothMoveSwayLoc.x, moveLocTarget.x, 2.2f);
             smoothMoveSwayLoc.y = CoreToolkitLib.Glerp(smoothMoveSwayLoc.y, moveLocTarget.y, 3f);
             smoothMoveSwayLoc.z = CoreToolkitLib.Glerp(smoothMoveSwayLoc.z, moveLocTarget.z, 2.5f);
-
-            CoreToolkitLib.MoveInBoneSpace(core.rigData.rootBone, GetMasterIK(),
+            
+            CoreToolkitLib.MoveInBoneSpace(core.rigData.rootBone, GetMasterIK(), 
                 smoothMoveSwayLoc);
-
-            CoreToolkitLib.RotateInBoneSpace(GetMasterIK().rotation, GetMasterIK(),
+            
+            CoreToolkitLib.RotateInBoneSpace(GetMasterIK().rotation, GetMasterIK(), 
                 Quaternion.Euler(smoothMoveSwayRot));
         }
     }

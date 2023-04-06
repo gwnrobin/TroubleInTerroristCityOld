@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Kinemation.FPSFramework.Runtime.Core
 {
@@ -54,12 +55,15 @@ namespace Kinemation.FPSFramework.Runtime.Core
         }
     }
 
-    // Used for dynamic retargeting
+    // DynamicBone is essentially an IK bone
     [Serializable]
     public struct DynamicBone
     {
+        [Tooltip("Actual bone")]
         public Transform target;
+        [Tooltip("Target for elbows/knees")]
         public Transform hintTarget;
+        [Tooltip("The representation of the DynamicBone in space")]
         public GameObject obj;
 
         public void Retarget()
@@ -85,7 +89,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public List<Quaternion> lookUp;
     }
 
-    // Defines essential skeleton data, used by Anim Layers
+    // Essential skeleton data, used by Anim Layers
     [Serializable]
     public struct DynamicRigData
     {
@@ -112,14 +116,15 @@ namespace Kinemation.FPSFramework.Runtime.Core
             leftFoot.Retarget();
         }
     }
-
+    
+    [Serializable]
     public abstract class AnimLayer : MonoBehaviour
     {
-        [Header("Layer Blending")]
+        [Header("Layer Blending")] 
         [SerializeField, Range(0f, 1f)] protected float layerAlpha = 1f;
         [SerializeField] protected float lerpSpeed;
         protected float smoothLayerAlpha;
-
+        
         [Header("Misc")]
         [SerializeField] public bool runInEditor;
         protected CoreAnimComponent core;
@@ -128,7 +133,11 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             layerAlpha = Mathf.Clamp01(weight);
         }
-
+        
+        public virtual void OnAnimStart()
+        {
+        }
+        
         public void OnRetarget(CoreAnimComponent comp)
         {
             core = comp;
@@ -138,7 +147,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             smoothLayerAlpha = CoreToolkitLib.GlerpLayer(smoothLayerAlpha, layerAlpha, lerpSpeed);
         }
-
+        
         public virtual void OnAnimUpdate()
         {
         }
@@ -154,12 +163,12 @@ namespace Kinemation.FPSFramework.Runtime.Core
         protected virtual void Awake()
         {
         }
-
+        
         protected WeaponAnimData GetGunData()
         {
             return core.rigData.gunData;
         }
-
+        
         protected CharAnimData GetCharData()
         {
             return core.rigData.characterData;
@@ -169,7 +178,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             return core.rigData.masterDynamic.obj.transform;
         }
-
+        
         protected Transform GetRootBone()
         {
             return core.rigData.rootBone;
@@ -178,6 +187,26 @@ namespace Kinemation.FPSFramework.Runtime.Core
         protected Transform GetPelvis()
         {
             return core.rigData.pelvis;
+        }
+
+        protected DynamicBone GetRightHand()
+        {
+            return core.rigData.rightHand;
+        }
+        
+        protected DynamicBone GetLeftHand()
+        {
+            return core.rigData.leftHand;
+        }
+        
+        protected DynamicBone GetRightFoot()
+        {
+            return core.rigData.rightFoot;
+        }
+        
+        protected DynamicBone GetLeftFoot()
+        {
+            return core.rigData.leftFoot;
         }
 
         protected Animator GetAnimator()
@@ -189,18 +218,23 @@ namespace Kinemation.FPSFramework.Runtime.Core
     [ExecuteAlways]
     public class CoreAnimComponent : MonoBehaviour
     {
-        [Header("Essentials")]
+        [Header("Essentials")] 
         public DynamicRigData rigData;
-
+        
         [SerializeField] [HideInInspector] private List<AnimLayer> animLayers;
         [SerializeField] private bool useIK = true;
 
-        [Header("Misc")]
+        [Header("Misc")] 
         [SerializeField] private bool drawDebug;
 
         private bool _updateInEditor;
         private float _interpHands;
         private float _interpLayer;
+
+        private Tuple<float, float> rightHandWeight = new(1f, 1f);
+        private Tuple<float, float> leftHandWeight = new(1f, 1f);
+        private Tuple<float, float> rightFootWeight = new(1f, 1f);
+        private Tuple<float, float> leftFootWeight = new(1f, 1f);
 
         private void ApplyIK()
         {
@@ -208,23 +242,36 @@ namespace Kinemation.FPSFramework.Runtime.Core
             {
                 return;
             }
-
-            void SolveIK(DynamicBone tipBone)
+            
+            void SolveIK(DynamicBone tipBone, Tuple<float, float> weights)
             {
+                if (Mathf.Approximately(weights.Item1, 0f))
+                {
+                    return;
+                }
+                
                 var lowerBone = tipBone.target.parent;
                 CoreToolkitLib.SolveTwoBoneIK(lowerBone.parent, lowerBone, tipBone.target,
-                    tipBone.obj.transform, tipBone.hintTarget, 1f, 1f, 1f);
+                    tipBone.obj.transform, tipBone.hintTarget, weights.Item1, weights.Item1, weights.Item2);
             }
-
-            SolveIK(rigData.rightHand);
-            SolveIK(rigData.leftHand);
-            SolveIK(rigData.rightFoot);
-            SolveIK(rigData.leftFoot);
+            
+            SolveIK(rigData.rightHand, rightHandWeight);
+            SolveIK(rigData.leftHand, leftHandWeight);
+            SolveIK(rigData.rightFoot, rightFootWeight);
+            SolveIK(rigData.leftFoot, leftFootWeight);
         }
 
         private void OnEnable()
         {
             animLayers ??= new List<AnimLayer>();
+        }
+
+        private void Start()
+        {
+            foreach (var layer in animLayers)
+            {
+                layer.OnAnimStart();
+            }
         }
 
         private void Update()
@@ -256,7 +303,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                         Handles.Label(loc, boneName);
                     }
                 }
-
+                
                 DrawDynamicBone(ref rigData.rightHand, "RightHandIK");
                 DrawDynamicBone(ref rigData.leftHand, "LeftHandIK");
                 DrawDynamicBone(ref rigData.rightFoot, "RightFootIK");
@@ -285,14 +332,14 @@ namespace Kinemation.FPSFramework.Runtime.Core
             {
                 return;
             }
-
+            
             Retarget();
             PreUpdateLayers();
             UpdateLayers();
             ApplyIK();
             PostUpdateLayers();
         }
-
+        
         private void Retarget()
         {
             foreach (var layer in animLayers)
@@ -301,10 +348,10 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     continue;
                 }
-
+                
                 layer.OnRetarget(this);
             }
-
+            
             rigData.Retarget();
         }
 
@@ -317,7 +364,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     continue;
                 }
-
+                
                 layer.OnPreAnimUpdate();
             }
         }
@@ -330,7 +377,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     continue;
                 }
-
+                
                 layer.OnAnimUpdate();
             }
         }
@@ -344,7 +391,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     continue;
                 }
-
+                
                 layer.OnPostIK();
             }
         }
@@ -371,7 +418,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             rigData.animator.Rebind();
             rigData.animator.Update(0f);
         }
-
+        
         public Transform GetRootBone()
         {
             return rigData.rootBone;
@@ -387,12 +434,32 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             rigData.gunData.gunAimData.aimPoint = newSight;
         }
-
+        
         public void SetCharData(CharAnimData data)
         {
-            rigData.characterData = data;
+            rigData.characterData = data; ;
         }
 
+        public void SetRightHandIKWeight(float effector, float hint)
+        {
+            rightHandWeight = Tuple.Create(effector, hint);
+        }
+        
+        public void SetLeftHandIKWeight(float effector, float hint)
+        {
+            leftHandWeight = Tuple.Create(effector, hint);
+        }
+
+        public void SetRightFootIKWeight(float effector, float hint)
+        {
+            rightFootWeight = Tuple.Create(effector, hint);
+        }
+        
+        public void SetLeftFootIKWeight(float effector, float hint)
+        {
+            leftFootWeight = Tuple.Create(effector, hint);
+        }
+        
         // Editor utils
 #if UNITY_EDITOR
         public void SetupBones()
@@ -401,7 +468,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             {
                 rigData.animator = GetComponent<Animator>();
             }
-
+            
             if (rigData.rootBone == null)
             {
                 var root = transform.Find("rootBone");
@@ -553,7 +620,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                             rigData.masterDynamic.obj.transform.localPosition = Vector3.zero;
                         }
                     }
-
+                
                     if (rigData.rightHand.obj == null)
                     {
                         var boneObject = bone.transform.Find("RightHandIK");
@@ -583,7 +650,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                         {
                             rigData.leftHand.obj = new GameObject("LeftHandIK");
                         }
-
+                        
                         rigData.leftHand.obj.transform.parent = rigData.masterDynamic.obj.transform;
                         rigData.leftHand.obj.transform.localPosition = Vector3.zero;
                     }
@@ -639,7 +706,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
             return animLayers[index];
         }
-
+        
         public bool HasA(AnimLayer item)
         {
             return animLayers.Contains(item);

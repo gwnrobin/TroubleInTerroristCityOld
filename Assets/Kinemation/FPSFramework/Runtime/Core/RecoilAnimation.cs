@@ -15,7 +15,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
             this.y = y;
             this.z = z;
         }
-
+	
         public bool x;
         public bool y;
         public bool z;
@@ -67,19 +67,19 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
         private float _pushTarget;
         private float _pushOut;
-
+    
         private float _lastFrameTime;
         private float _playBack;
         private float _lastTimeShot;
-
+    
         private bool _isPlaying;
         private bool _isLooping;
         private bool _enableSmoothing;
-
+    
         public void Init(RecoilAnimData data, float fireRate, FireMode newFireMode)
         {
             fireMode = newFireMode;
-
+            
             _recoilData = data;
 
             OutRot = Vector3.zero;
@@ -107,7 +107,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                     break;
                 }
             }
-
+        
             _stateMachine[_stateIndex].onPlay.Invoke();
             _lastTimeShot = Time.unscaledTime;
         }
@@ -126,9 +126,9 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 UpdateTimeline();
             }
             ApplySmoothing();
-
+        
             Vector3 finalLoc = _smoothLocOut;
-
+        
             ApplyNoise(ref finalLoc);
             ApplyPushback(ref finalLoc);
 
@@ -200,14 +200,14 @@ namespace Kinemation.FPSFramework.Runtime.Core
             {
                 CalculateTargetData();
             }
-
+        
             // Current playback position
             float lastPlayback = _playBack - Time.deltaTime * _recoilData.playRate;
             lastPlayback = Mathf.Max(lastPlayback, 0f);
 
             Vector3 alpha = _tempRotCurve.Evaluate(_playBack);
             Vector3 lastAlpha = _tempRotCurve.Evaluate(lastPlayback);
-
+            
             Vector3 output = Vector3.zero;
 
             output.x = Mathf.LerpUnclamped(
@@ -244,17 +244,17 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
         private void ApplySmoothing()
         {
-            if (_enableSmoothing)
+            if(_enableSmoothing)
             {
                 Vector3 lerped = _smoothRotOut;
 
                 Vector3 smooth = _recoilData.smoothRot;
 
-                Func<float, float, float, float, float> Interp = (a, b, speed, scale) =>
-                   {
-                       scale = Mathf.Approximately(scale, 0f) ? 1f : scale;
-                       return Mathf.Approximately(speed, 0f) ? b * scale : CoreToolkitLib.Glerp(a, b * scale, speed);
-                   };
+                Func<float,float,float,float, float> Interp = (a, b, speed, scale) =>
+                {
+                    scale = Mathf.Approximately(scale, 0f) ? 1f : scale;
+                    return Mathf.Approximately(speed, 0f) ? b * scale : CoreToolkitLib.Glerp(a, b * scale, speed);
+                };
 
                 lerped.x = Interp(_smoothRotOut.x, _rawRotOut.x, smooth.x, _recoilData.extraRot.x);
                 lerped.y = Interp(_smoothRotOut.y, _rawRotOut.y, smooth.y, _recoilData.extraRot.y);
@@ -263,7 +263,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
                 lerped = _smoothLocOut;
                 smooth = _recoilData.smoothLoc;
-
+                
                 lerped.x = Interp(_smoothLocOut.x, _rawLocOut.x, smooth.x, _recoilData.extraLoc.x);
                 lerped.y = Interp(_smoothLocOut.y, _rawLocOut.y, smooth.y, _recoilData.extraLoc.y);
                 lerped.z = Interp(_smoothLocOut.z, _rawLocOut.z, smooth.z, _recoilData.extraLoc.z);
@@ -281,7 +281,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         {
             _noiseTarget.x = CoreToolkitLib.Glerp(_noiseTarget.x, 0f, _recoilData.noiseDamp.x);
             _noiseTarget.y = CoreToolkitLib.Glerp(_noiseTarget.y, 0f, _recoilData.noiseDamp.y);
-
+	
             _noiseOut.x = CoreToolkitLib.Glerp(_noiseOut.x, _noiseTarget.x, _recoilData.noiseAccel.x);
             _noiseOut.y = CoreToolkitLib.Glerp(_noiseOut.y, _noiseTarget.y, _recoilData.noiseAccel.y);
 
@@ -295,7 +295,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
             finalized += new Vector3(0f, 0f, _pushOut);
         }
-
+    
         private float CorrectStart(ref float last, float current, ref bool bStartRest, ref float startVal)
         {
             if (Mathf.Abs(last) > Mathf.Abs(current) && bStartRest && !_isLooping)
@@ -303,12 +303,12 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 startVal = 0f;
                 bStartRest = false;
             }
-
+	
             last = current;
-
+	
             return startVal;
         }
-
+        
         private void SetupStateMachine()
         {
             _stateMachine ??= new List<AnimState>();
@@ -320,18 +320,18 @@ namespace Kinemation.FPSFramework.Runtime.Core
             {
                 float timerError = (60f / _fireRate) / Time.deltaTime + 1;
                 timerError *= Time.deltaTime;
-
-                if (_enableSmoothing && !_isLooping)
+            
+                if(_enableSmoothing && !_isLooping)
                 {
                     _enableSmoothing = false;
                 }
-
+            
                 return GetDelta() > timerError + 0.01f && !_isLooping || fireMode == FireMode.Semi;
             };
 
             semiState.onPlay = () =>
             {
-                SetupTransition(_smoothRotOut, _smoothLocOut, _recoilData.recoilCurves.semiRotCurve,
+                SetupTransition(_smoothRotOut, _smoothLocOut, _recoilData.recoilCurves.semiRotCurve, 
                     _recoilData.recoilCurves.semiLocCurve);
             };
 
@@ -348,7 +348,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     return;
                 }
-
+            
                 var curves = _recoilData.recoilCurves;
                 bool bCurvesValid = curves.autoRotCurve.IsValid() && curves.autoLocCurve.IsValid();
 
@@ -360,14 +360,14 @@ namespace Kinemation.FPSFramework.Runtime.Core
                     CorrectAlpha(curves.autoRotCurve, curves.autoLocCurve, correction);
                     SetupTransition(_startValRot, _startValLoc, curves.autoRotCurve, curves.autoLocCurve);
                 }
-                else if (curves.autoRotCurve.IsValid() && curves.autoLocCurve.IsValid())
+                else if(curves.autoRotCurve.IsValid() && curves.autoLocCurve.IsValid())
                 {
                     CorrectAlpha(curves.semiRotCurve, curves.semiLocCurve, correction);
                     SetupTransition(_startValRot, _startValLoc, curves.semiRotCurve, curves.semiLocCurve);
                 }
 
                 _pushTarget = _recoilData.pushAmount;
-
+            
                 _lastFrameTime = correction;
                 _isLooping = true;
             };
@@ -378,7 +378,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
                 {
                     return;
                 }
-
+                
                 float tempRot = _tempRotCurve.GetLastTime();
                 float tempLoc = _tempLocCurve.GetLastTime();
                 _lastFrameTime = tempRot > tempLoc ? tempRot : tempLoc;
@@ -391,46 +391,46 @@ namespace Kinemation.FPSFramework.Runtime.Core
 
         private void SetupTransition(Vector3 startRot, Vector3 startLoc, VectorCurve rot, VectorCurve loc)
         {
-            if (!rot.IsValid() || !loc.IsValid())
+            if(!rot.IsValid() || !loc.IsValid())
             {
                 Debug.Log("RecoilAnimation: Rot or Loc curve is nullptr");
                 return;
             }
-
+        
             _startValRot = startRot;
             _startValLoc = startLoc;
-
+	
             _canRestRot = _canRestLoc = new StartRest(true, true, true);
 
             _tempRotCurve = rot;
             _tempLocCurve = loc;
 
             _lastFrameTime = rot.GetLastTime() > loc.GetLastTime() ? rot.GetLastTime() : loc.GetLastTime();
-
+        
             PlayFromStart();
         }
-
+    
         private void CorrectAlpha(VectorCurve rot, VectorCurve loc, float time)
         {
             Vector3 curveAlpha = rot.Evaluate(time);
-
+        
             _startValRot.x = Mathf.LerpUnclamped(_startValRot.x, _targetRot.x, curveAlpha.x);
             _startValRot.y = Mathf.LerpUnclamped(_startValRot.y, _targetRot.y, curveAlpha.y);
             _startValRot.z = Mathf.LerpUnclamped(_startValRot.z, _targetRot.z, curveAlpha.z);
 
             curveAlpha = loc.Evaluate(time);
-
+	
             _startValLoc.x = Mathf.LerpUnclamped(_startValLoc.x, _targetLoc.x, curveAlpha.x);
             _startValLoc.y = Mathf.LerpUnclamped(_startValLoc.y, _targetLoc.y, curveAlpha.y);
             _startValLoc.z = Mathf.LerpUnclamped(_startValLoc.z, _targetLoc.z, curveAlpha.z);
         }
-
+    
         private void PlayFromStart()
-        {
+        { 
             _playBack = 0f;
             _isPlaying = true;
         }
-
+    
         private float GetDelta()
         {
             return Time.unscaledTime - _lastTimeShot;

@@ -14,7 +14,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public LocRot pointAimOffset;
         public float aimSpeed;
     }
-
+    
     [CreateAssetMenu(fileName = "NewAimData", menuName = "TargetAimData")]
     public class TargetAimData : ScriptableObject
     {

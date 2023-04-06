@@ -14,7 +14,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
         [SerializeField] protected Transform spineRootBone;
         [SerializeField] protected Transform rootBone;
         [SerializeField] protected Quaternion spineBoneRotMS;
-
+        
         protected override void Start()
         {
             base.Start();
@@ -40,7 +40,7 @@ namespace Kinemation.FPSFramework.Runtime.Layers
         public override void OnPreAnimUpdate()
         {
             base.OnPreAnimUpdate();
-
+            
             spineRootBone.rotation = Quaternion.Slerp(spineRootBone.rotation,
                 rootBone.rotation * spineBoneRotMS, smoothLayerAlpha);
         }

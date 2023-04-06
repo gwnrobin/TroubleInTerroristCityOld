@@ -36,9 +36,9 @@ namespace Kinemation.FPSFramework.Runtime.Layers
 
         public override void OnAnimUpdate()
         {
-            var masterDynamic = GetMasterIK();
+            var masterDynamic= GetMasterIK();
             LocRot baseT = new LocRot(masterDynamic.position, masterDynamic.rotation);
-
+            
             ApplyReadyPose();
 
             LocRot newT = new LocRot(masterDynamic.position, masterDynamic.rotation);
@@ -50,11 +50,11 @@ namespace Kinemation.FPSFramework.Runtime.Layers
         protected virtual void ApplyReadyPose()
         {
             var master = GetMasterIK();
-
+            
             smoothReadyAlpha = CoreToolkitLib.Glerp(smoothReadyAlpha, readyPoseAlpha, interpSpeed);
 
             var finalPose = readyPoseType == ReadyPose.HighReady ? highReadyPose : lowReadyPose;
-            CoreToolkitLib.MoveInBoneSpace(GetRootBone(), master,
+            CoreToolkitLib.MoveInBoneSpace(GetRootBone(), master, 
                 Vector3.Lerp(Vector3.zero, finalPose.position, smoothReadyAlpha));
             CoreToolkitLib.RotateInBoneSpace(GetRootBone().rotation, master,
                 Quaternion.Slerp(Quaternion.identity, finalPose.rotation, smoothReadyAlpha));

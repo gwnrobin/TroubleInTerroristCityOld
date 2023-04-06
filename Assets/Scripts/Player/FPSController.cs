@@ -201,7 +201,7 @@ public class FPSController : PlayerComponent
         _playerInput.x = Mathf.Clamp(_playerInput.x, -90f, 90f);
         _playerInput.y = Mathf.Clamp(_playerInput.y, -90f, 90f);
 
-        Player._charAnimData.deltaAimInput = new Vector2(deltaMouseX, deltaMouseY);
+        Player._charAnimData.AddAimInput(new Vector2(deltaMouseX, deltaMouseY));
 
         if (shouldMove)
         {
