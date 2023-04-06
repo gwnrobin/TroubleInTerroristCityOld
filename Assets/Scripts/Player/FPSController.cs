@@ -7,7 +7,6 @@ public enum FPSMovementState
 {
     Idle,
     Walking,
-    Running,
     Sprinting
 }
 
@@ -54,20 +53,12 @@ public class FPSController : PlayerComponent
     private static readonly int MoveX = Animator.StringToHash("moveX");
     private static readonly int MoveY = Animator.StringToHash("moveY");
 
-    [SerializeField]
-    private bool toggleAim = true;
-    [SerializeField]
-    private bool toggleCrouch = true;
-
-
 
     private void Awake()
     {
         Player.Crouch.AddStartListener(Crouch);
-        if (!toggleCrouch)
-        {
-            Player.Crouch.AddStopListener(Crouch);
-        }
+
+        Player.Crouch.AddStopListener(Crouch);
 
         Player.Lean.AddStartListener(Lean);
         Player.Lean.AddStopListener(() => Player._charAnimData.leanDirection = 0);
@@ -76,11 +67,10 @@ public class FPSController : PlayerComponent
 
         Player.Crouch.SetStartTryer(TryStartCrouch);
         Player.Crouch.SetStopTryer(TryStopCrouch);
+
         Player.Sprint.SetStartTryer(TryStartSprint);
+        Player.Sprint.AddStartListener(StartSprint);
         Player.Sprint.AddStopListener(OnSprintStop);
-
-        //Player.poseState.AddChangeListener(Crouch);
-
     }
 
     private void Start()
@@ -99,8 +89,6 @@ public class FPSController : PlayerComponent
 
     private bool TryStartCrouch()
     {
-
-
         return true;
     }
 
@@ -114,6 +102,11 @@ public class FPSController : PlayerComponent
         if (Player.poseState.Val == FPSPoseState.Crouching || !(Player.MoveInput.Get().y > 0f) || Player.Stamina.Get() < 15f)
             return false;
 
+        return true;
+    }
+
+    private void StartSprint()
+    {
         Player.movementState.Set(FPSMovementState.Sprinting);
         Player.actionState.Set(FPSActionState.None);
 
@@ -125,8 +118,6 @@ public class FPSController : PlayerComponent
 
         speed = sprintSpeed;
         animator.SetBool(Sprint, true);
-
-        return true;
     }
 
     private void OnSprintStop()

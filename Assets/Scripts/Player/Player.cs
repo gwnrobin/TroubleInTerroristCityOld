@@ -72,30 +72,88 @@ public class Player : Humanoid
 
     private void Update()
     {
-        _charAnimData.recoilAnim = new LocRot(_recoilAnimation.OutLoc,
-Quaternion.Euler(_recoilAnimation.OutRot));
+        _charAnimData.recoilAnim = new LocRot(_recoilAnimation.OutLoc, Quaternion.Euler(_recoilAnimation.OutRot));
 
         if (IsOwner)
         {
-            charAnimData.Value = _charAnimData;
             _charAnimStates.action = (int)actionState.Val;
             _charAnimStates.movement = (int)movementState.Val;
             _charAnimStates.pose = (int)poseState.Val;
+
+            charAnimData.Value = _charAnimData;
             charAnimStates.Value = _charAnimStates;
         }
         else
         {
             _charAnimData = charAnimData.Value;
             _charAnimStates = charAnimStates.Value;
+
             actionState.Set((FPSActionState)_charAnimStates.action);
             movementState.Set((FPSMovementState)_charAnimStates.movement);
             poseState.Set((FPSPoseState)_charAnimStates.pose);
+
+            ChangeActionState(actionState.Val);
+            ChangeMovementState(movementState.Val);
+            ChangePoseState(poseState.Val);
+
+            print(poseState.Val);
 
             MoveInput.Set(_charAnimData.moveInput);
         }
 
         coreAnimComponent.SetCharData(_charAnimData);
     }
+
+    private void ChangeActionState(FPSActionState state)
+    {
+        switch (state)
+        {
+            case FPSActionState.Aiming:
+                Aim.ForceStart();
+                break;
+            case FPSActionState.PointAiming:
+                PointAim.ForceStart();
+                break;
+            case FPSActionState.Ready:
+                Holster.ForceStart();
+                break;
+            case FPSActionState.None:
+                Aim.ForceStop();
+                PointAim.ForceStop();
+                Holster.ForceStop();
+                break;
+        }
+    }
+
+    private void ChangeMovementState(FPSMovementState state)
+    {
+        switch (state)
+        {
+            case FPSMovementState.Walking:
+                Walk.ForceStart();
+                break;
+            case FPSMovementState.Sprinting :
+                Sprint.ForceStart();
+                break;
+            case FPSMovementState.Idle:
+                Walk.ForceStop();
+                Sprint.ForceStop();
+                break;
+        }
+    }
+    private void ChangePoseState(FPSPoseState state)
+    {
+        switch (state)
+        {
+            case FPSPoseState.Crouching:
+                Crouch.ForceStart();
+                break;
+            case FPSPoseState.Standing:
+                Crouch.ForceStop();
+                break;
+        }
+    }
+
 }
 
 public struct CharAnimStates : INetworkSerializable
