@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using Unity.Netcode;
 using UnityEngine;
 using Quaternion = UnityEngine.Quaternion;
 using Vector2 = UnityEngine.Vector2;
@@ -183,7 +184,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
     }
 
     // Defines player input data consumed by Anim Layers
-    public struct CharAnimData
+    public struct CharAnimData : INetworkSerializable
     {
         // Input
         public Vector2 deltaAimInput;
@@ -192,6 +193,15 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public int leanDirection;
         
         public LocRot recoilAnim;
+
+        public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+        {
+            serializer.SerializeValue(ref deltaAimInput);
+            serializer.SerializeValue(ref moveInput);
+            serializer.SerializeValue(ref leanDirection);
+            serializer.SerializeValue(ref recoilAnim.position);
+            serializer.SerializeValue(ref recoilAnim.rotation);
+        }
 
         public void AddAimInput(Vector2 aimInput)
         {
