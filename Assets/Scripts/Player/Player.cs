@@ -88,8 +88,6 @@ public class Player : Humanoid
             _charAnimData = charAnimData.Value;
             _charAnimStates = charAnimStates.Value;
 
-            _charAnimData.AddAimInput(charAnimData.Value.deltaAimInput);
-
             actionState.Set((FPSActionState)_charAnimStates.action);
             movementState.Set((FPSMovementState)_charAnimStates.movement);
             poseState.Set((FPSPoseState)_charAnimStates.pose);

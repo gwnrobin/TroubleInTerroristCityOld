@@ -3,6 +3,12 @@ using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
+public struct PlayerData
+{
+    ulong playerID;
+    GameObject playerGameObject;
+}
+
 public class PlayerManager : NetworkBehaviour
 {
     [SerializeField] private List<GameObject> players = new();

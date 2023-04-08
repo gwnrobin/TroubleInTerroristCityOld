@@ -197,6 +197,7 @@ namespace Kinemation.FPSFramework.Runtime.Core
         public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
         {
             serializer.SerializeValue(ref deltaAimInput);
+            serializer.SerializeValue(ref totalAimInput);
             serializer.SerializeValue(ref moveInput);
             serializer.SerializeValue(ref leanDirection);
             serializer.SerializeValue(ref recoilAnim.position);
