@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Kinemation.FPSFramework.Runtime.Core;
+using Unity.Netcode;
 using UnityEngine;
 
 public class Gun : ProjectileWeapon
@@ -103,7 +104,6 @@ public class Gun : ProjectileWeapon
 
             // Try to damage the Hit object
             Player.DealDamage.Try(damageInfo, null);
-
             GameObject g = Instantiate(test, hitInfo.point, Quaternion.LookRotation(itemUseRay.direction));
             //g.transform.Rotate(itemUseRay.direction.normalized);
             //SurfaceManager.SpawnEffect(hitInfo, SurfaceEffects.BulletHit, 1f);
@@ -113,7 +113,6 @@ public class Gun : ProjectileWeapon
 
         return hitInfo.point;
     }
-
 }
 
 public struct AmmoInfo

@@ -96,8 +96,6 @@ public class Player : Humanoid
             ChangeMovementState(movementState.Val);
             ChangePoseState(poseState.Val);
 
-            print(poseState.Val);
-
             MoveInput.Set(_charAnimData.moveInput);
         }
 
